@@ -1,7 +1,9 @@
-<?php namespace Indatus\LaravelPSRedis;
+<?php
+namespace LaravelPSRedis;
 
 use Illuminate\Redis\RedisManager;
 use Illuminate\Support\ServiceProvider;
+use LaravelPSRedis\Driver;
 
 class LaravelPSRedisServiceProvider extends ServiceProvider
 {
