@@ -1,6 +1,8 @@
 <?php
+
 namespace LaravelPSRedis;
 
+use Illuminate\Config\Repository;
 use Illuminate\Redis\RedisManager;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,6 +16,12 @@ class LaravelPSRedisServiceProvider extends ServiceProvider
      */
     protected $defer = true;
 
+
+    public function boot()
+    {
+        $this->app->configure('redis');
+    }
+
     /**
      * Register the service provider.
      *
@@ -24,7 +32,10 @@ class LaravelPSRedisServiceProvider extends ServiceProvider
         $this->app->singleton(
             'redis',
             function () {
-                $driver = new Driver();
+                /** @var Repository $config */
+                $config = $this->app->make('config');
+                $driver = new Driver($config->get('redis'));
+
                 return new RedisManager('predis', $driver->getConfig());
             }
         );

@@ -1,5 +1,7 @@
 # Laravel-PSRedis
 
+__! Only for laravel/lumen >= 5.4, for previous laravel/lumen versions use 1.* version of the package https://github.com/Indatus/laravel-PSRedis__
+
 A simple sentinel/redis driver wrapper for laravel. 
 
 The default laravel redis driver supports redis clusters, however, it does not support high availability with redis, which is where Laravel-PSRedis comes to the rescue. 
@@ -55,40 +57,30 @@ You may already have some default laravel config values in place in your databas
         ],
     ],
 ``` 
-
-Just overwrite those with the values below and fill in your server info.
+Remove it and create separate configuration file for redis `config/redis.php` 
 
 ```
-    'redis' => [
+<?php
+# config/redis.php
+return [
+    'nodeSetName'      => env('SENTINEL_NODE_SET_NAME', 'mymaster'),
+    'cluster'          => false,
+    // Sentinel nodes
+    'masters'          => sentinels(env('SENTINELS', '')),
+    'password'         => env('REDIS_PASSWORD', null),
+    'port'             => env('REDIS_PORT', 26379),
+    'database'         => env('REDIS_DATABASE', 0),
 
-           /** the name of the redis node set */
-        'nodeSetName' => 'sentinel-node-set',
-        'cluster' => false,
-        'password' => env('REDIS_PASSWORD', null),
-        'database' => env('REDIS_DATABASE', 0),
-        
-        /** Array of sentinels */
-        'masters' => [
-            [
-                'host' => 'sentinel-instance.domain.com',
-                'port' => '26379',
-            ],
-            [
-                'host' => 'sentinel-instance.domain.com',
-                'port' => '26379',
-            ]
-        ],
-    
-        /** how long to wait and try again if we fail to connect to master */
-        'backoff-strategy' => [
-            'max-attempts' => 10, // the maximum-number of attempt possible to find master
-            'wait-time' => 500,   // miliseconds to wait for the next attempt
-            'increment' => 1.5, // multiplier used to increment the back off time on each try
-        ]
-    ];  
-    
-    
-    
+    /** how long to wait and try again if we fail to connect to master */
+    'backoff-strategy' => [
+        'max-attempts' => env('SENTINEL_MAX_ATTEMPTS', 10),
+        // the maximum-number of attempt possible to find master
+        'wait-time'    => env('SENTINEL_WAIT_TIME', 500),
+        // miliseconds to wait for the next attempt
+        'increment'    => env('SENTINEL_INCREMENT', 1.5),
+        // multiplier used to increment the back off time on each try
+    ],
+];
 ```
 
 <a name="the-service-provider" />

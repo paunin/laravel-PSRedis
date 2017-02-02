@@ -2,7 +2,6 @@
 
 namespace LaravelPSRedis;
 
-use Illuminate\Support\Facades\Config;
 use PSRedis\Client as PSRedisClient;
 use PSRedis\HAClient;
 use PSRedis\MasterDiscovery;
@@ -11,35 +10,20 @@ use PSRedis\MasterDiscovery\BackoffStrategy\Incremental;
 class Driver
 {
     /**
-     * @var string Root path to configs
+     * @var array
      */
-    protected $rootConfigPath = null;
-
-    /**
-     * @var MasterDiscovery $masterDiscovery The mechanism for determining the master
-     */
-    protected $masterDiscovery;
-
-    /**
-     * @var HAClient $HAClient is the highly available client which handles the auto-failover.
-     */
-    protected $HAClient;
-
+    protected $config;
 
     /**
      * Constructor
      *
-     * @param string $rootConfigPath
+     * @param array $config
+     *
+     * @internal param string $rootConfigPath
      */
-    public function __construct($rootConfigPath = 'database.redis')
+    public function __construct($config)
     {
-        $this->rootConfigPath = $rootConfigPath;
-        $this->setUpMasterDiscovery($this->getSettings('nodeSetName'));
-        $this->addSentinels($this->getSettings('masters'));
-
-        $this->HAClient = new HAClient(
-            $this->masterDiscovery
-        );
+        $this->config = $config;
     }
 
 
@@ -50,24 +34,8 @@ class Driver
      */
     public function getConfig()
     {
-        return [
-            'cluster' => $this->getSettings('cluster'),
-            'default' => [
-                'host'     => $this->HAClient->getIpAddress(),
-                'port'     => $this->HAClient->getPort(),
-                'password' => $this->getSettings('password', null),
-                'database' => $this->getSettings('database', 0),
-            ]
-        ];
-    }
+        $masterDiscovery = new MasterDiscovery($this->getSettings('nodeSetName'));
 
-    /**
-     * Define back-off strategy
-     *
-     * @return Incremental
-     */
-    protected function getBackOffStrategy()
-    {
         /** @var array $backOffConfig */
         $backOffConfig = $this->getSettings('backoff-strategy');
 
@@ -76,37 +44,27 @@ class Driver
             $backOffConfig['wait-time'],
             $backOffConfig['increment']
         );
-
         $incrementalBackOff->setMaxAttempts($backOffConfig['max-attempts']);
+        $masterDiscovery->setBackoffStrategy($incrementalBackOff);
 
-        return $incrementalBackOff;
-    }
-
-    /**
-     * Create master discovery
-     *
-     * @param $nodeSetName string e.g. `mymaster`
-     */
-    protected function setUpMasterDiscovery($nodeSetName)
-    {
-        $this->masterDiscovery = new MasterDiscovery($nodeSetName);
-
-        $this->masterDiscovery->setBackoffStrategy($this->getBackOffStrategy());
-    }
-
-    /**
-     * Add sentinel to master discovery
-     *
-     * @param $clients list of clients
-     */
-    protected function addSentinels($clients)
-    {
-        foreach ($clients as $client) {
+        foreach ($this->getSettings('masters') as $client) {
             $sentinel = new PSRedisClient($client['host'], $client['port']);
-
-            $this->masterDiscovery->addSentinel($sentinel);
+            $masterDiscovery->addSentinel($sentinel);
         }
+
+        $HAClient = new HAClient($masterDiscovery);
+
+        return [
+            'cluster' => $this->getSettings('cluster'),
+            'default' => [
+                'host'     => $HAClient->getIpAddress(),
+                'port'     => $HAClient->getPort(),
+                'password' => $this->getSettings('password', null),
+                'database' => $this->getSettings('database', 0),
+            ]
+        ];
     }
+
 
     /**
      * Get settings
@@ -116,8 +74,8 @@ class Driver
      *
      * @return mixed
      */
-    protected function getSettings($name, $default)
+    protected function getSettings($name, $default = null)
     {
-        return Config::get($this->rootConfigPath . '.' . $name, $default);
+        return isset($this->config[$name]) ? $this->config[$name] : $default;
     }
 }
